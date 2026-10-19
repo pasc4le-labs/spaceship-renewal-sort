@@ -8,6 +8,8 @@
 // @run-at       document-start
 // @grant        none
 // @noframes
+// @downloadURL  https://raw.githubusercontent.com/pasc4le-labs/spaceship-renewal-sort/main/spaceship-renewal-sort.user.js
+// @updateURL    https://raw.githubusercontent.com/pasc4le-labs/spaceship-renewal-sort/main/spaceship-renewal-sort.user.js
 // ==/UserScript==
 
 (function () {
