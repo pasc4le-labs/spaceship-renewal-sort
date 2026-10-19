@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Spaceship Beast Mode — sort by renewal price
 // @namespace    https://github.com/pasc4le-labs/spaceship-renewal-sort
-// @version      1.0.0
+// @version      1.1.0
 // @description  Adds a toggle to Spaceship's Beast Mode results that re-sorts the list by renewal price instead of the first-year price.
 // @author       bob
-// @match        https://www.spaceship.com/domain-search*
+// @match        https://www.spaceship.com/*
 // @run-at       document-start
 // @grant        none
 // @noframes
@@ -29,6 +29,7 @@
   let listEl = null;
   let renderTimer = null;
   let hydrationInFlight = false;
+  const diag = { version: '1.1.0', place: 'none', enabled: false, rows: 0 };
 
   const debug = (...args) => {
     if (window.__SPRS_DEBUG) console.log('[renewal-sort]', ...args);
@@ -273,6 +274,7 @@
 
     const rows = items.map(readRow).filter(Boolean);
     if (!rows.length) return;
+    diag.rows = rows.length;
 
     rows.forEach((row) => {
       if (row.unavailable) {
@@ -375,6 +377,7 @@
   const setEnabled = (value) => {
     debug('setEnabled', value);
     enabled = Boolean(value);
+    diag.enabled = enabled;
     writeEnabled(enabled);
     clearTimeout(renderTimer);
     renderTimer = null;
@@ -404,15 +407,34 @@
     return button;
   };
 
-  const mountToggle = () => {
-    const header = document.querySelector('.results__header');
-    if (!header) return;
-    if (toggleEl && header.contains(toggleEl)) return;
-    const anchor = header.querySelector('.results__sort-by') || header;
+  const isBeastContext = () => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab === 'beast') return true;
+    if (document.querySelector('.results__header')) return true;
+    return Boolean(document.querySelector('[class*="beast-tab"], [class*="beast-mode"]'));
+  };
+
+  const placeToggle = () => {
     if (!toggleEl) toggleEl = buildToggle();
-    anchor.insertBefore(toggleEl, anchor.firstChild);
     toggleEl.classList.toggle('sprs-toggle--on', enabled);
     toggleEl.setAttribute('aria-checked', String(enabled));
+
+    const header = document.querySelector('.results__header');
+    if (header) {
+      const anchor = header.querySelector('.results__sort-by') || header;
+      if (toggleEl.parentElement !== anchor) anchor.insertBefore(toggleEl, anchor.firstChild);
+      toggleEl.classList.remove('sprs-toggle--floating');
+      diag.place = 'header';
+      return;
+    }
+    if (isBeastContext()) {
+      if (toggleEl.parentElement !== document.body) document.body.appendChild(toggleEl);
+      toggleEl.classList.add('sprs-toggle--floating');
+      diag.place = 'floating';
+      return;
+    }
+    if (toggleEl.parentElement) toggleEl.remove();
+    diag.place = 'none';
   };
 
   const injectStyles = () => {
@@ -458,6 +480,14 @@
         transition: transform .15s ease;
       }
       .sprs-toggle--on .sprs-toggle__thumb { transform: translateX(11px); }
+      .sprs-toggle--floating {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 2147483000;
+        padding: 8px 14px 8px 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+      }
       .sprs-renew {
         display: inline-block;
         margin-left: 6px;
@@ -480,16 +510,17 @@
     let scheduled = false;
     observer = new MutationObserver((records) => {
       if (scheduled) return;
-      const relevant = records.some((record) => {
-        const target = record.target;
-        if (!(target instanceof Element)) return false;
-        return Boolean(target.closest('.results')) || target.querySelector?.('.results');
-      });
+      const relevant =
+        records.some((record) => {
+          const target = record.target;
+          if (!(target instanceof Element)) return false;
+          return Boolean(target.closest('.results')) || Boolean(target.querySelector?.('.results'));
+        }) || (diag.place !== 'header' && isBeastContext());
       if (!relevant) return;
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
-        mountToggle();
+        placeToggle();
         if (enabled) scheduleRender();
       });
     });
@@ -498,8 +529,13 @@
 
   const boot = () => {
     injectStyles();
-    mountToggle();
+    placeToggle();
     startObserver();
+    window.__sprs = Object.assign(diag, {
+      resort: () => (enabled ? sortRows() : restoreRows()),
+      toggle: () => setEnabled(!enabled),
+      mount: () => placeToggle(),
+    });
     if (enabled) scheduleRender();
   };
 

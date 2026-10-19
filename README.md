@@ -15,12 +15,16 @@ actual renewal price and tags every row with it.
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey).
 2. Open [`spaceship-renewal-sort.user.js`](https://raw.githubusercontent.com/pasc4le-labs/spaceship-renewal-sort/main/spaceship-renewal-sort.user.js) — Tampermonkey offers to install it.
+3. **Reload any Spaceship tab that was already open** — the script has to hook the page before its own
+   code runs, so an existing tab stays unpatched until reloaded.
 
 ## Use
 
 1. Open the Domain Search, switch to the **Beast Mode** tab.
 2. Pick the TLDs you care about (**Show more** lists all of them), type a keyword, press **Generate**.
-3. In the *Results* header, flip **Sort by renewal**.
+3. Flip **Sort by renewal** — it sits in the *Results* header next to the view toggles, and floats at the
+   bottom right of the page on the Beast tab until the first results exist. Turning it on before
+   generating works too: results come out already sorted.
 
 While the toggle is on:
 
@@ -61,6 +65,16 @@ restores the original order without leftovers.
 npm i -D playwright && npx playwright install chromium
 node test/verify.mjs            # QUERY=whatever SHOT=path.png to override
 ```
+
+## Troubleshooting
+
+- `fbq is not defined` in the console is the site's own Facebook-pixel bug, unrelated — it shows up
+  without this script installed.
+- Nothing visible? Open the console and read `__sprs`: `{version, place, enabled, rows}` where `place`
+  is `header` (results present), `floating` (Beast tab, no results yet) or `none` (not a Beast Mode
+  page). `__sprs.toggle()` flips the setting and `__sprs.resort()` re-applies it.
+- With `@grant none` the script needs Tampermonkey's default injection mode; if you switched it to
+  "Sandbox", set it back to "Instant"/"Auto" for this script.
 
 ## License
 
